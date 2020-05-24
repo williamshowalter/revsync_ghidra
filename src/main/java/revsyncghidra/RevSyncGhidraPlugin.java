@@ -48,7 +48,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	 "seg_", "asc_", "byte_", "word_", "dword_", "qword_", "byte3_", "xmmword_", "ymmword_", 
 	 "packreal_", "flt_", "dbl_", "tbyte_", "stru_", "custdata_", "algn_", "unk_" };
 	 
-    public RevsyncConfig conf;
+    public RevsyncConfig config;
     public RevsyncClient client;
 
 	/**
@@ -142,11 +142,16 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
         }
         
 		try {
-			conf = new RevsyncConfig(console);
+			config = new RevsyncConfig(console);
 		} catch(Exception e) {
-			consolePrint("Could not load config");
+			consolePrint("Could not load config: " + e.getMessage());
 			return;
 		}
+		
+		if (client == null) {
+			client = new RevsyncClient(this, config);
+		}
+		client.join(fhash);
         
 		currentProgram.addListener(this);
 		stopRevsyncAction.setEnabled(true);
@@ -157,6 +162,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
     }
 
     protected void stopRevsync() {
+    	client.leave();
         if (currentProgram == null) {
             return;
         }

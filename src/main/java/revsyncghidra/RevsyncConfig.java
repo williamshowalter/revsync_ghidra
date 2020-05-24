@@ -9,20 +9,21 @@ import ghidra.app.services.ConsoleService;
 
 public class RevsyncConfig {
 
-   public TreeMap<String,Object> config;
    public String host;
    public int port;
    public String nick;
    public String password;
 
    public RevsyncConfig(ConsoleService console) throws Exception {
+      TreeMap<String,Object> config;
+
       Gson gson = new Gson();
       Properties props = System.getProperties();
 
       // TODO: We can look in user.home/.config or user.home/.revsync or something
       String cwd = (String)props.get("user.dir");
       String fsep = (String)props.get("file.separator");
-      console.addMessage("RevsyncConfig", cwd + fsep + "config.json");
+      console.addMessage("RevsyncConfig", "Loading config from: " + cwd + fsep + "config.json");
       
       FileReader fr = new FileReader(cwd + fsep + "config.json");
       config = gson.fromJson(fr, TreeMap.class);
@@ -32,7 +33,7 @@ public class RevsyncConfig {
       port = Double.valueOf((config.get("port").toString())).intValue();
       nick = (String)config.get("nick");
       password = (String)config.getOrDefault("password", null);
-
+      
    }
 
 }

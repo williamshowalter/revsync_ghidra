@@ -2,3 +2,4 @@
 .gradle
 dist/
 bin/
+build/
