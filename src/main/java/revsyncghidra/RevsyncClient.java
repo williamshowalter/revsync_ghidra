@@ -32,6 +32,7 @@ public class RevsyncClient {
 		public void onMessage(String channel, String message) {
 			// got a message
 			Msg.info(this, "got message: " + message);
+			frontend.consolePrint("got message: " + message);
 //         TreeMap<String,Object> map = fromJson(message);
 //         if (map.containsKey("user")) {
 //            String user = (String)map.get("user");
@@ -50,28 +51,33 @@ public class RevsyncClient {
 
 		public void onPMessage(String pattern, String channel, String message) {
 			Msg.info(this, "got message: " + message);
+			frontend.consolePrint("got message: " + message);
 		}
 
 		public void onSubscribe(String channel, int subscribedChannels) {
 			Msg.info(this, "got message: onSubscribe: " + channel);
+			frontend.consolePrint("got message: onSubscribe: " + channel);
 		}
 
 		public void onUnsubscribe(String channel, int subscribedChannels) {
 			Msg.info(this, "got message: onUnsubscribe: " + channel);
+			frontend.consolePrint("got message: onUnsubscribe: " + channel);
 		}
 
 		public void onPUnsubscribe(String pattern, int subscribedChannels) {
 			Msg.info(this, "got message: on PUnsubscribe: " + pattern);
+			frontend.consolePrint("got message: on PUnsubscribe: " + pattern);
 		}
 
 		public void onPSubscribe(String pattern, int subscribedChannels) {
 			Msg.info(this, "got message: on PSubscribe: " + pattern);
+			frontend.consolePrint("got message: on PSubscribe: " + pattern);
 		}
 	}
 
 	protected class SubThread extends Thread {
 		public void run() {
-			jedis.subscribe(revsub, key);
+			jedisSub.subscribe(revsub, key);
 		}
 	}
 
@@ -173,17 +179,18 @@ public class RevsyncClient {
 		return gson.fromJson(json, type);
 	}
 
-	public Jedis jedis;
+	public Jedis jedisSub;
+	public Jedis jedisPub;
 	public String uuid;
 	public String nick;
-	public Object lock;
 	public String key;
 	public RevSub revsub;
 	protected SubThread subThread;
-	protected Vector<Vector<Object>> nosend;
+	protected Vector<Vector<Object>> nosend = new Vector<Vector<Object>>();
+	final protected Object lock = new Object();
 
 	public long serverTime() {
-		List<String> ll = jedis.time();
+		List<String> ll = jedisPub.time();
 		for (String s : ll) {
 			Msg.info(this, s);
 		}
@@ -191,7 +198,7 @@ public class RevsyncClient {
 	}
 
 	public long serverTimeSec() {
-		List<String> ll = jedis.time();
+		List<String> ll = jedisPub.time();
 		for (String s : ll) {
 			System.err.println(s);
 		}
@@ -213,9 +220,13 @@ public class RevsyncClient {
 
 	public RevsyncClient(RevSyncGhidraPlugin frontend, RevsyncConfig conf) { // String host, int port, String nick,
 																				// String password) {
-		jedis = new Jedis(conf.host, conf.port, 5);
+		jedisPub = new Jedis(conf.host, conf.port, 5);
 		if (conf.password != null) {
-			jedis.auth(conf.password);
+			jedisPub.auth(conf.password);
+		}
+		jedisSub = new Jedis(conf.host, conf.port, 5);
+		if (conf.password != null) {
+			jedisSub.auth(conf.password);
 		}
 		UUID u = UUID.randomUUID();
 		ByteBuffer bb = ByteBuffer.allocate(16);
@@ -300,9 +311,9 @@ public class RevsyncClient {
 		}
 		String json = gson.toJson(data);
 		if (perm) {
-			jedis.rpush(key, json);
+			jedisPub.rpush(key, json);
 		}
-		jedis.publish(key, json);
+		jedisPub.publish(key, json);
 	}
 
 	public void publish(TreeMap<String, Object> data, boolean send_uuid) {
@@ -317,7 +328,7 @@ public class RevsyncClient {
 		if (send_uuid) {
 			data.put("uuid", uuid);
 		}
-		jedis.lpush(key, gson.toJson(data));
+		jedisPub.lpush(key, gson.toJson(data));
 	}
 
 	public void push(TreeMap<String, Object> data) {
