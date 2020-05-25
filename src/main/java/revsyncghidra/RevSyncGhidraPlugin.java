@@ -4,6 +4,8 @@ ADD REVSYNC LICENSE AND COPYRIGHT STUFF HERE
 */
 package revsyncghidra;
 
+import java.util.TreeMap;
+
 import javax.swing.*;
 
 import docking.ActionContext;
@@ -113,6 +115,13 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		}
 	}
     
+	// binja_frontend never uses replay, seeing if I need it or not
+	public void revsync_callback(TreeMap<String,Object> data, Boolean replay) {
+		// need to implement
+		Msg.info(this, "data: " + data.toString() + " replay: "+ replay.toString());
+		return;
+	}
+	
 	/**
 	 * Called when the program is opened.
 	 */

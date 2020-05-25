@@ -24,8 +24,7 @@ public class RevsyncClient {
 		}
 
 		public void onMessage(String channel, String message) {
-			// got a message
-			Msg.info(this, "on channel " + channel +" got message: " + message);
+//			Msg.info(this, "on channel " + channel +" got message: " + message);
 			frontend.consolePrint("on channel " + channel + " got message: " + message);
 			
 			if (!channel.contentEquals(key)) {
@@ -47,23 +46,15 @@ public class RevsyncClient {
 			}
 			
 			synchronized (lock) {
-				Msg.info(this, "Syncronized");
 				nosend = remove_ttl(nosend);
-				Msg.info(this,  "remove_ttl returned");
 				Vector<Object> tv = new Vector<Object>();
 				tv.add(serverTimeSec());
 				for (Object i : dtokey(data)) {
 					tv.add(i);
 				}
 				nosend.add(tv);
-				Msg.info(this,  "nosend added");
-				Msg.info(this, nosend.toString());
 			}
-			
-			// cb(data);
-			// callback to frontend
-			
-//         frontend.onmsg_safe(key, data);
+			frontend.revsync_callback(data, false);
 		}
 
 		public void onPMessage(String pattern, String channel, String message) {
@@ -74,16 +65,14 @@ public class RevsyncClient {
 		public void onSubscribe(String channel, int subscribedChannels) {
 			Msg.info(this, "got message: onSubscribe: " + channel);
 			frontend.consolePrint("got message: onSubscribe: " + channel);
-			// NEED THIS AT A MINIMUM
-			Vector<TreeMap<String,Object>> previousState = new Vector<TreeMap<String,Object>>();
+
+			Vector<TreeMap<String,Object>> state = new Vector<TreeMap<String,Object>>();
 			Vector<TreeMap<String,Object>> decoded = new Vector<TreeMap<String,Object>>();
-			TreeMap<String,Object> data;
 			List<String> previousMessages;
 			synchronized (lock) {
 				previousMessages =  jedisGen.lrange(key, 0, -1);
 			}
 			for (String m : previousMessages) {
-				Msg.info(this, m);
 				frontend.consolePrint(m);
 				try {
 					decoded.add(decode(m));
@@ -93,23 +82,59 @@ public class RevsyncClient {
 					continue;
 				}
 			}
+
+			Set<Vector<String>> dedup = new HashSet<Vector<String>>();
 			Collections.reverse(decoded);
 			for (TreeMap<String,Object> d : decoded) {
 				String cmd = (String)d.get("cmd");
 				if (cmd != null) {
-					Vector<String> keys = new Vector<String>();
+					Vector<String> hashkey = new Vector<String>();
 					for (String k : hash_keys) {
-						keys.add(k);
+						Object e  = d.get(k);
+						if (e != null) {
+							hashkey.add((String)e);
+						}
 					}
-					Vector<String> cmd_hash_key_v = cmd_hash_keys.get(cmd);
-					for (String k : cmd_hash_key_v) {
-						keys.add(k);
+					if (cmd_hash_keys.containsKey(cmd)) {
+						for (String k : cmd_hash_keys.get(cmd)) {
+							Object e  = d.get(k);
+							if (e != null) {
+								if (e instanceof String) {
+									hashkey.add((String)e);
+								}
+								else if (e instanceof Double){
+									hashkey.add(String.valueOf(e));
+								}
+								else {
+									Msg.info(this, "Unknown type of e: " + e.getClass().toString());
+								}
+							}
+						}
 					}
-				}
 					
+					if (dedup.contains(hashkey)) {
+						continue;
+					}
+					dedup.add(hashkey);
+					state.add(d);
+					// client.py has state.append(data) outside of if(cmd), but i dont see why we process anything
+					// without a cmd??? even join is a cmd?
+					// looks like ida_frontend would throw an error and catch it, binja would not catch and throw
+				}
 			}
 			
-			
+			Collections.reverse(state);
+			for (TreeMap<String,Object> d : state) {
+				synchronized(lock) {
+					Vector<Object> tv = new Vector<Object>();
+					tv.add(serverTimeSec());
+					for (Object i : dtokey(d)) {
+						tv.add(i);
+					}
+					nosend.add(tv);
+				}
+				frontend.revsync_callback(d, true);
+			}
 		}
 
 		public void onUnsubscribe(String channel, int subscribedChannels) {
@@ -214,7 +239,6 @@ public class RevsyncClient {
 				decoded.put(key_dec.get(e.getKey()), e.getValue());
 			}
 		}
-		Msg.info("decode", decoded.toString());
 		return decoded;
 	}
 
@@ -252,9 +276,6 @@ public class RevsyncClient {
 		synchronized (lock) {
 			ll = jedisGen.time();
 		}
-		for (String s : ll) {
-			Msg.info(this, "Server time: " + s);
-		}
 		return (Long.parseLong(ll.get(0)) * 1000) + (Long.parseLong(ll.get(1)) / 1000);
 	}
 
@@ -262,9 +283,6 @@ public class RevsyncClient {
 		List<String> ll;
 		synchronized (lock) {
 			ll = jedisGen.time();
-		}
-		for (String s : ll) {
-			Msg.info(this, "Server time: " + s);
 		}
 		return Long.parseLong(ll.get(0));
 	}
@@ -282,8 +300,7 @@ public class RevsyncClient {
 		return res;
 	}
 
-	public RevsyncClient(RevSyncGhidraPlugin frontend, RevsyncConfig conf) { // String host, int port, String nick,
-																				// String password) {
+	public RevsyncClient(RevSyncGhidraPlugin frontend, RevsyncConfig conf) {
 		jedisGen = new Jedis(conf.host, conf.port, 5);
 		if (conf.password != null) {
 			jedisGen.auth(conf.password);
@@ -328,7 +345,7 @@ public class RevsyncClient {
 		Vector<Pair<String, Object>> dkey = dtokey(data);
 		long now = serverTime();
 		synchronized (lock) {
-			Msg.info(this, "No: " + no.toString() + "\n" + "data: " + data.toString());
+//			Msg.info(this, "No: " + no.toString() + "\n" + "data: " + data.toString());
 			for (Vector<Object> d : no) {
 				long ts_ms = ((Long) d.get(0)).longValue() * 1000; // to milliseconds
 				Vector<Pair<String, Object>> entry = new Vector<Pair<String, Object>>();
