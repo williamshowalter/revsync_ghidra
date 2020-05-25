@@ -1,24 +1,18 @@
 package revsyncghidra;
 
-import java.io.*;
 import java.lang.reflect.Type;
-import java.net.*;
-import java.sql.*;
 import java.util.*;
 import java.util.Map.Entry;
 
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.nio.*;
-import java.time.*;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
 import ghidra.util.Msg;
 import redis.clients.jedis.*;
 
-//don't know whether this needs to be a thread or not, maybe Jedis jedis 
-//starts its own thread?
 public class RevsyncClient {
 
 	public class RevSub extends JedisPubSub {
@@ -31,32 +25,91 @@ public class RevsyncClient {
 
 		public void onMessage(String channel, String message) {
 			// got a message
-			Msg.info(this, "got message: " + message);
-			frontend.consolePrint("got message: " + message);
-//         TreeMap<String,Object> map = fromJson(message);
-//         if (map.containsKey("user")) {
-//            String user = (String)map.get("user");
-//            map.put("user", user.replace(nick_filter, "_"));
-//         }
-//         // reject our own messages
-//         if (map.get("uuid").equals(uuid)) {
-//            return;
-//         }
-//         synchronized (lock) {
-//            nosend.put(channel, remove_ttl(nosend.getOrDefault(channel, new Vector<String>())));
-//            nosend.get(channel).add((System.currentTimeMillis() + dtokey(data)));
-//         }
+			Msg.info(this, "on channel " + channel +" got message: " + message);
+			frontend.consolePrint("on channel " + channel + " got message: " + message);
+			
+			if (!channel.contentEquals(key)) {
+				// it really shouldn't be possible to reach here, since we only subscribe to channel key.
+				frontend.consolePrint("hash mismatch, dropping command");
+				return;
+			}
+			
+			TreeMap<String,Object> data = decode(message);
+			
+			if (data.containsKey("user")){
+				data.replace("user", ((String)data.get("user")).replace(nick_filter,"_"));
+			}
+			
+			// reject our own messages
+			if (data.get("uuid").equals(uuid)) {
+				Msg.info(this, "rejecting own message");
+				return;
+			}
+			
+			synchronized (lock) {
+				Msg.info(this, "Syncronized");
+				nosend = remove_ttl(nosend);
+				Msg.info(this,  "remove_ttl returned");
+				Vector<Object> tv = new Vector<Object>();
+				tv.add(serverTimeSec());
+				for (Object i : dtokey(data)) {
+					tv.add(i);
+				}
+				nosend.add(tv);
+				Msg.info(this,  "nosend added");
+				Msg.info(this, nosend.toString());
+			}
+			
+			// cb(data);
+			// callback to frontend
+			
 //         frontend.onmsg_safe(key, data);
 		}
 
 		public void onPMessage(String pattern, String channel, String message) {
-			Msg.info(this, "got message: " + message);
+			Msg.info(this, "got pmessage: " + message);
 			frontend.consolePrint("got message: " + message);
 		}
 
 		public void onSubscribe(String channel, int subscribedChannels) {
 			Msg.info(this, "got message: onSubscribe: " + channel);
 			frontend.consolePrint("got message: onSubscribe: " + channel);
+			// NEED THIS AT A MINIMUM
+			Vector<TreeMap<String,Object>> previousState = new Vector<TreeMap<String,Object>>();
+			Vector<TreeMap<String,Object>> decoded = new Vector<TreeMap<String,Object>>();
+			TreeMap<String,Object> data;
+			List<String> previousMessages;
+			synchronized (lock) {
+				previousMessages =  jedisGen.lrange(key, 0, -1);
+			}
+			for (String m : previousMessages) {
+				Msg.info(this, m);
+				frontend.consolePrint(m);
+				try {
+					decoded.add(decode(m));
+				} catch(Exception e) {
+					Msg.info(this,  "Error decoding previous messages: " + m);
+					frontend.consolePrint(m);
+					continue;
+				}
+			}
+			Collections.reverse(decoded);
+			for (TreeMap<String,Object> d : decoded) {
+				String cmd = (String)d.get("cmd");
+				if (cmd != null) {
+					Vector<String> keys = new Vector<String>();
+					for (String k : hash_keys) {
+						keys.add(k);
+					}
+					Vector<String> cmd_hash_key_v = cmd_hash_keys.get(cmd);
+					for (String k : cmd_hash_key_v) {
+						keys.add(k);
+					}
+				}
+					
+			}
+			
+			
 		}
 
 		public void onUnsubscribe(String channel, int subscribedChannels) {
@@ -81,14 +134,14 @@ public class RevsyncClient {
 		}
 	}
 
-	protected static final long TTL = 2000; // milliseconds - python uses seconds and doubles
-	protected static Gson gson = new Gson();
-	public static HashSet<String> skip = new HashSet<String>();
-	public static String hash_keys[] = { "cmd", "user" };
-	public static HashMap<String, Vector<String>> cmd_hash_keys = new HashMap<String, Vector<String>>();
-	public static HashMap<String, String> key_dec = new HashMap<String, String>();
-	public static HashMap<String, String> key_enc = new HashMap<String, String>();
-	public static String nick_filter = "[^a-zA-Z0-9_\\-]";
+	protected static final long TTL = 2000; // milliseconds - python uses seconds as doubles/float
+	protected static final Gson gson = new Gson();
+	protected static final HashSet<String> skip = new HashSet<String>();
+	protected static final String hash_keys[] = { "cmd", "user" }; // all cmds have cmd and user
+	protected static final HashMap<String, Vector<String>> cmd_hash_keys = new HashMap<String, Vector<String>>();
+	protected static final HashMap<String, String> key_dec = new HashMap<String, String>();
+	protected static final HashMap<String, String> key_enc = new HashMap<String, String>();
+	protected static final String nick_filter = "[^a-zA-Z0-9_\\-]";
 
 	static {
 		Vector<String> t = new Vector<String>();
@@ -151,19 +204,24 @@ public class RevsyncClient {
 		skip.add("user");
 	}
 
-	public static TreeMap<String, Object> decode(String json) {
+	protected static TreeMap<String, Object> decode(String json) {
 		TreeMap<String, Object> decoded = new TreeMap<String, Object>();
 		for (Entry<String, Object> e : fromJson(json).entrySet()) {
-			decoded.put(key_dec.get(e.getKey()), e.getValue());
+			if(key_dec.get(e.getKey())== null) {
+				decoded.put(e.getKey(), e.getValue());
+			}
+			else {
+				decoded.put(key_dec.get(e.getKey()), e.getValue());
+			}
 		}
-		Msg.info("decodeFunc", decoded.toString());
+		Msg.info("decode", decoded.toString());
 		return decoded;
 	}
 
 	// treemaps are sorted, so vector should end up being?
 	// python d = {'cmd': 'comment', 'addr': 984, 'text': 'newComment'}
 	// python res = (('addr', 984), ('cmd', 'comment'), ('text', 'newComment'))
-	public static Vector<Pair<String, Object>> dtokey(TreeMap<String, Object> d) {
+	protected static Vector<Pair<String, Object>> dtokey(TreeMap<String, Object> d) {
 		Vector<Pair<String, Object>> res = new Vector<Pair<String, Object>>();
 		for (Entry<String, Object> e : d.entrySet()) {
 			if (skip.contains(e.getKey())) {
@@ -174,38 +232,44 @@ public class RevsyncClient {
 		return res;
 	}
 
-	public static TreeMap<String, Object> fromJson(String json) {
+	protected static TreeMap<String, Object> fromJson(String json) {
 		Type type = new TypeToken<TreeMap<String, Object>>() {}.getType();
 		return gson.fromJson(json, type);
 	}
 
-	public Jedis jedisSub;
-	public Jedis jedisPub;
-	public String uuid;
-	public String nick;
-	public String key;
-	public RevSub revsub;
+	protected Jedis jedisSub;
+	protected Jedis jedisGen;
+	protected String uuid;
+	protected String nick;
+	protected String key;
+	protected RevSub revsub;
 	protected SubThread subThread;
 	protected Vector<Vector<Object>> nosend = new Vector<Vector<Object>>();
 	final protected Object lock = new Object();
 
-	public long serverTime() {
-		List<String> ll = jedisPub.time();
+	protected long serverTime() {
+		List<String> ll;
+		synchronized (lock) {
+			ll = jedisGen.time();
+		}
 		for (String s : ll) {
-			Msg.info(this, s);
+			Msg.info(this, "Server time: " + s);
 		}
 		return (Long.parseLong(ll.get(0)) * 1000) + (Long.parseLong(ll.get(1)) / 1000);
 	}
 
-	public long serverTimeSec() {
-		List<String> ll = jedisPub.time();
+	protected long serverTimeSec() {
+		List<String> ll;
+		synchronized (lock) {
+			ll = jedisGen.time();
+		}
 		for (String s : ll) {
-			System.err.println(s);
+			Msg.info(this, "Server time: " + s);
 		}
 		return Long.parseLong(ll.get(0));
 	}
 
-	public Vector<Vector<Object>> remove_ttl(Vector<Vector<Object>> a) {
+	protected Vector<Vector<Object>> remove_ttl(Vector<Vector<Object>> a) {
 		long now = serverTime();
 		Vector<Vector<Object>> res = new Vector<Vector<Object>>();
 
@@ -220,9 +284,9 @@ public class RevsyncClient {
 
 	public RevsyncClient(RevSyncGhidraPlugin frontend, RevsyncConfig conf) { // String host, int port, String nick,
 																				// String password) {
-		jedisPub = new Jedis(conf.host, conf.port, 5);
+		jedisGen = new Jedis(conf.host, conf.port, 5);
 		if (conf.password != null) {
-			jedisPub.auth(conf.password);
+			jedisGen.auth(conf.password);
 		}
 		jedisSub = new Jedis(conf.host, conf.port, 5);
 		if (conf.password != null) {
@@ -232,6 +296,7 @@ public class RevsyncClient {
 		ByteBuffer bb = ByteBuffer.allocate(16);
 		bb.putLong(u.getMostSignificantBits());
 		bb.putLong(u.getLeastSignificantBits());
+		// unicode fix???
 		uuid = Base64.getEncoder().encodeToString(bb.array());
 		nick = conf.nick.replace(nick_filter, "_");
 		revsub = new RevSub(frontend);
@@ -247,9 +312,9 @@ public class RevsyncClient {
 	// treemap/hashmap??
 
 	// in code here it's a vector of vector<object>, which - i guess is okay , was a
-	// list of touples in python,
-	// where each touple was a Double time, followed by arbitrary number of
-	// key:value touples.
+	// list of tuples in python,
+	// where each tuple was a Double time, followed by arbitrary number of
+	// key:value tuples.
 	/*
 	 * debounce no = [ (1590287867.9123807, ('addr', 888), ('cmd', 'comment'),
 	 * ('text', ';jj')), (1590287869.1665049, ('addr', 892), ('cmd', 'comment'),
@@ -259,10 +324,11 @@ public class RevsyncClient {
 	 * dtokey = (('addr', 984), ('cmd', 'comment'), ('text', 'newComment'))
 	 * 
 	 */
-	public Boolean debounce(Vector<Vector<Object>> no, TreeMap<String, Object> data) {
+	protected Boolean debounce(Vector<Vector<Object>> no, TreeMap<String, Object> data) {
 		Vector<Pair<String, Object>> dkey = dtokey(data);
 		long now = serverTime();
 		synchronized (lock) {
+			Msg.info(this, "No: " + no.toString() + "\n" + "data: " + data.toString());
 			for (Vector<Object> d : no) {
 				long ts_ms = ((Long) d.get(0)).longValue() * 1000; // to milliseconds
 				Vector<Pair<String, Object>> entry = new Vector<Pair<String, Object>>();
@@ -287,7 +353,7 @@ public class RevsyncClient {
 		TreeMap<String, Object> data = new TreeMap<String, Object>();
 		data.put("cmd", "join");
 		Msg.info(this, "finishing subscribing");
-		publish(data, false);
+		publish(data, false, true);
 	}
 
 	// need to test to make sure we can't trigger events after leave happens - since
@@ -299,7 +365,7 @@ public class RevsyncClient {
 		Msg.info(this, "finished unsubscribing");
 	}
 
-	public void publish(TreeMap<String, Object> data, boolean send_uuid, boolean perm) {
+	public void publish(TreeMap<String, Object> data, boolean perm, boolean send_uuid) {
 		if (debounce(nosend, data)) {
 			return;
 		}
@@ -309,15 +375,33 @@ public class RevsyncClient {
 		if (send_uuid) {
 			data.put("uuid", uuid);
 		}
-		String json = gson.toJson(data);
-		if (perm) {
-			jedisPub.rpush(key, json);
+		
+		// encode
+		TreeMap<String, Object> encoded = new TreeMap<String, Object>();
+		for (Entry<String, Object> e : data.entrySet()) {
+			if(key_enc.get(e.getKey()) == null) {
+				// Not in key_enc, such as ts
+				Msg.info("encode skipping", e.toString());
+				encoded.put(e.getKey(), e.getValue());
+			}
+			else {
+				encoded.put(key_enc.get(e.getKey()), e.getValue());
+			}
 		}
-		jedisPub.publish(key, json);
+		
+		String json = gson.toJson(encoded);
+		if (perm) {
+			synchronized (lock) {
+				jedisGen.rpush(key, json);
+			}
+		}
+		synchronized (lock) {
+			jedisGen.publish(key, json);
+		}
 	}
 
 	public void publish(TreeMap<String, Object> data, boolean send_uuid) {
-		publish(data, send_uuid, true);
+		publish(data, true, send_uuid);
 	}
 
 	public void publish(TreeMap<String, Object> data) {
@@ -328,7 +412,9 @@ public class RevsyncClient {
 		if (send_uuid) {
 			data.put("uuid", uuid);
 		}
-		jedisPub.lpush(key, gson.toJson(data));
+		synchronized (lock) {
+			jedisGen.lpush(key, gson.toJson(data));
+		}
 	}
 
 	public void push(TreeMap<String, Object> data) {
