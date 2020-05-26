@@ -23,25 +23,22 @@ public class RevsyncClient {
 			this.frontend = frontend;
 		}
 
-		public void onMessage(String channel, String message) {
-//			Msg.info(this, "on channel " + channel +" got message: " + message);
-			frontend.consolePrint("on channel " + channel + " got message: " + message);
-			
+		public void onMessage(String channel, String message) {	
 			if (!channel.contentEquals(key)) {
-				// it really shouldn't be possible to reach here, since we only subscribe to channel key.
-				frontend.consolePrint("hash mismatch, dropping command");
+				Msg.error(this, "it really shouldn't be possible to reach here, since we only subscribe to channel key.");
+				Msg.error(this, "hash mismatch, dropping message on bad channel " + channel);
+				frontend.consolePrint("hash mismatch, dropping message on bad channel " + channel);
 				return;
 			}
 			
 			TreeMap<String,Object> data = decode(message);
-			
+
 			if (data.containsKey("user")){
 				data.replace("user", ((String)data.get("user")).replace(nick_filter,"_"));
 			}
 			
 			// reject our own messages
 			if (data.get("uuid").equals(uuid)) {
-				Msg.info(this, "rejecting own message");
 				return;
 			}
 			
@@ -59,12 +56,10 @@ public class RevsyncClient {
 
 		public void onPMessage(String pattern, String channel, String message) {
 			Msg.info(this, "got pmessage: " + message);
-			frontend.consolePrint("got message: " + message);
 		}
 
 		public void onSubscribe(String channel, int subscribedChannels) {
 			Msg.info(this, "got message: onSubscribe: " + channel);
-			frontend.consolePrint("got message: onSubscribe: " + channel);
 
 			Vector<TreeMap<String,Object>> state = new Vector<TreeMap<String,Object>>();
 			Vector<TreeMap<String,Object>> decoded = new Vector<TreeMap<String,Object>>();
@@ -73,12 +68,11 @@ public class RevsyncClient {
 				previousMessages =  jedisGen.lrange(key, 0, -1);
 			}
 			for (String m : previousMessages) {
-				frontend.consolePrint(m);
 				try {
 					decoded.add(decode(m));
 				} catch(Exception e) {
-					Msg.info(this,  "Error decoding previous messages: " + m);
-					frontend.consolePrint(m);
+					Msg.error(this,  "Error decoding previous messages: " + m);
+					frontend.consolePrint("Error decoding previous message: " + m);
 					continue;
 				}
 			}
@@ -138,18 +132,16 @@ public class RevsyncClient {
 		}
 
 		public void onUnsubscribe(String channel, int subscribedChannels) {
-			Msg.info(this, "got message: onUnsubscribe: " + channel);
-			frontend.consolePrint("got message: onUnsubscribe: " + channel);
+			Msg.info(this, "Unsubscribed from channel: " + channel);
+			frontend.consolePrint("Unsubscribed from channel: " + channel);
 		}
 
 		public void onPUnsubscribe(String pattern, int subscribedChannels) {
-			Msg.info(this, "got message: on PUnsubscribe: " + pattern);
-			frontend.consolePrint("got message: on PUnsubscribe: " + pattern);
+			Msg.info(this, "Pattern Unsubscribed: " + pattern);
 		}
 
 		public void onPSubscribe(String pattern, int subscribedChannels) {
-			Msg.info(this, "got message: on PSubscribe: " + pattern);
-			frontend.consolePrint("got message: on PSubscribe: " + pattern);
+			Msg.info(this, "Pattern Subscribe: " + pattern);
 		}
 	}
 
@@ -393,7 +385,6 @@ public class RevsyncClient {
 			data.put("uuid", uuid);
 		}
 		
-		// encode
 		TreeMap<String, Object> encoded = new TreeMap<String, Object>();
 		for (Entry<String, Object> e : data.entrySet()) {
 			if(key_enc.get(e.getKey()) == null) {

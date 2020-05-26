@@ -110,15 +110,69 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			DomainObjectChangeRecord record = ev.getChangeRecord(i);
 			if (record instanceof ProgramChangeRecord) {
 				ProgramChangeRecord r = (ProgramChangeRecord) record;
-				consolePrint(r.toString());
+				consolePrint("DEBUG domainObjectChanged: " + r.toString());
 			}
 		}
 	}
     
 	// binja_frontend never uses replay, seeing if I need it or not
 	public void revsync_callback(TreeMap<String,Object> data, Boolean replay) {
-		// need to implement
 		Msg.info(this, "data: " + data.toString() + " replay: "+ replay.toString());
+		String cmd = (String)data.get("cmd");
+		String user = (String)data.get("user");
+		Long ts = ((Double)data.get("ts")).longValue();
+		Msg.info(this, "ts = " + ts.toString());
+		
+		if (cmd == null) {
+			consolePrint("Error - no cmd in message");
+			return;
+		}
+		else if (cmd == "comment") {
+			
+		}
+		else if (cmd == "extra_comment") {
+			
+		}
+		else if (cmd == "area_comment") {
+			
+		}
+		else if (cmd == "rename") {
+			
+		}
+		else if (cmd == "stackvar_renamed") {
+			
+		}
+		else if (cmd == "struc_created") {
+			
+		}
+		else if (cmd == "struc_deleted") {
+			
+		}
+		else if (cmd == "struc_renamed") {
+			
+		}
+		else if (cmd == "struc_member_created") {
+			
+		}
+		else if (cmd == "struc_member_deleted") {
+			
+		}
+		else if (cmd == "struc_member_renamed") {
+			
+		}
+		else if (cmd == "struc_member_changed") {
+			
+		}
+		// Done
+		else if (cmd == "join") {
+			consolePrint(user + " joined");
+		}
+		else if (cmd == "coverage") {
+			
+		}
+		else {
+			consolePrint("Unknown cmd: " + cmd);
+		}
 		return;
 	}
 	
