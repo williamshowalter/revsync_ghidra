@@ -152,7 +152,7 @@ public class RevsyncClient {
 	}
 
 	protected static final long TTL = 2000; // milliseconds - python uses seconds as doubles/float
-	protected static final Gson gson = new Gson();
+	protected static final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
 	protected static final HashSet<String> skip = new HashSet<String>();
 	protected static final String hash_keys[] = { "cmd", "user" }; // all cmds have cmd and user
 	protected static final HashMap<String, Vector<String>> cmd_hash_keys = new HashMap<String, Vector<String>>();
@@ -292,6 +292,7 @@ public class RevsyncClient {
 		return res;
 	}
 
+	@SuppressWarnings("deprecation")
 	public RevsyncClient(RevSyncGhidraPlugin frontend, RevsyncConfig conf) {
 		jedisGen = new Jedis(conf.host, conf.port, 5);
 		if (conf.password != null) {
@@ -305,7 +306,6 @@ public class RevsyncClient {
 		ByteBuffer bb = ByteBuffer.allocate(16);
 		bb.putLong(u.getMostSignificantBits());
 		bb.putLong(u.getLeastSignificantBits());
-		// unicode fix???
 		uuid = Base64.getEncoder().encodeToString(bb.array());
 		nick = conf.nick.replace(nick_filter, "_");
 		revsub = new RevSub(frontend);

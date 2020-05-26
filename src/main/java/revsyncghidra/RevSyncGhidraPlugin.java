@@ -21,6 +21,7 @@ import ghidra.framework.model.DomainObjectChangedEvent;
 import ghidra.framework.model.DomainObjectListener;
 import ghidra.framework.plugintool.*;
 import ghidra.framework.plugintool.util.PluginStatus;
+import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
 import ghidra.program.util.ChangeManager;
 import ghidra.program.util.ProgramChangeRecord;
@@ -52,8 +53,19 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			"byte_", "word_", "dword_", "qword_", "byte3_", "xmmword_", "ymmword_", "packreal_", "flt_", "dbl_",
 			"tbyte_", "stru_", "custdata_", "algn_", "unk_" };
 
+	public long get_can_addr(Address addr) {
+		//"""Convert an Effective Address to a canonical address."""
+		return addr.getOffset() - currentProgram.getImageBase().getOffset();
+	}
+
+	public long get_ea(Long addr) {
+		//"""Get Effective Address from a canonical address."""
+		return addr + currentProgram.getImageBase().getOffset();
+	}
+	
 	public RevsyncConfig config;
 	public RevsyncClient client;
+	private Comments comments;
 
 	/**
 	 * Plugin constructor.
@@ -178,12 +190,14 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		String cmd = (String) data.get("cmd");
 		String user = (String) data.get("user");
 		Long ts = ((Double) data.get("ts")).longValue();
-
+		
 		if (cmd == null) {
 			consolePrint("Error - no cmd in message");
 			return;
 		} else if (cmd.equals("comment")) {
-
+			Long addr = get_ea(((Double) data.get("addr")).longValue());
+			Address ea = currentProgram.getImageBase().getNewAddress(addr);
+			comments.set(ea, user, (String)data.get("text"), ts);
 		} else if (cmd.equals("extra_comment")) {
 
 		} else if (cmd.equals("area_comment")) {
@@ -252,6 +266,8 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			consolePrint("Could not load config: " + e.getMessage());
 			return;
 		}
+		
+		comments = new Comments(this);
 
 		if (client == null) {
 			client = new RevsyncClient(this, config);
