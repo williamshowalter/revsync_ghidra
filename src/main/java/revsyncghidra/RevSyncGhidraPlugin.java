@@ -19,13 +19,22 @@ import ghidra.app.services.ProgramManager;
 import ghidra.framework.model.DomainObjectChangeRecord;
 import ghidra.framework.model.DomainObjectChangedEvent;
 import ghidra.framework.model.DomainObjectListener;
+import ghidra.framework.model.Transaction;
 import ghidra.framework.plugintool.*;
 import ghidra.framework.plugintool.util.PluginStatus;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.listing.CodeUnit;
+import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.mem.Memory;
+import ghidra.program.model.symbol.SourceType;
+import ghidra.program.model.symbol.Symbol;
+import ghidra.program.model.symbol.SymbolTable;
 import ghidra.program.util.ChangeManager;
 import ghidra.program.util.ProgramChangeRecord;
 import ghidra.util.Msg;
+import ghidra.util.exception.DuplicateNameException;
+import ghidra.util.exception.InvalidInputException;
 
 //@formatter:off
 @PluginInfo(
@@ -66,6 +75,8 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	public RevsyncConfig config;
 	public RevsyncClient client;
 	private Comments comments;
+	private int transactionID;
+	private Object lock = new Object();
 
 	/**
 	 * Plugin constructor.
@@ -183,27 +194,84 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			}
 		}
 	}
+	
+	private void startTransaction() {
+		transactionID = currentProgram.startTransaction(getClass().getName());
+		Msg.info(this,  "starting transaction id = " + Integer.valueOf(transactionID).toString());
+	}
+	
+	private void endTransaction(Boolean commit) {
+		if (transactionID != -1) {
+			Msg.info(this, "ending transaction id = " + Integer.valueOf(transactionID).toString());
+			currentProgram.endTransaction(transactionID, commit);
+			transactionID = -1;
+		}
+		else {
+			Msg.info(this, "transaction ID already -1, not ending");
+		}
+	}
 
-	// binja_frontend never uses replay, seeing if I need it or not
+	// binja_frontend never uses replay variable, Ghidra not using it for anything yet either
 	public void revsync_callback(TreeMap<String, Object> data, Boolean replay) {
 		Msg.info(this, "data: " + data.toString() + " replay: " + replay.toString());
 		String cmd = (String) data.get("cmd");
 		String user = (String) data.get("user");
 		Long ts = ((Double) data.get("ts")).longValue();
-		
+		Listing listing = currentProgram.getListing();
+		SymbolTable symbolTable = currentProgram.getSymbolTable();
+
 		if (cmd == null) {
 			consolePrint("Error - no cmd in message");
 			return;
 		} else if (cmd.equals("comment")) {
 			Long addr = get_ea(((Double) data.get("addr")).longValue());
 			Address ea = currentProgram.getImageBase().getNewAddress(addr);
-			comments.set(ea, user, (String)data.get("text"), ts);
+			String text = comments.set(ea, user, (String)data.get("text"), ts);
+			synchronized(lock) {
+				startTransaction();
+				listing.clearComments(ea, ea); // maybe keep, maybe take out
+				listing.setComment(ea, CodeUnit.EOL_COMMENT, text); // EOL is "default" comment
+				endTransaction(true);
+			}
 		} else if (cmd.equals("extra_comment")) {
-
+				// find out which these are closest too in PRE, POST, REPEAT, and PLATE
 		} else if (cmd.equals("area_comment")) {
-
+			// find out which these are closest too in PRE, POST, REPEAT, and PLATE
 		} else if (cmd.equals("rename")) {
-
+			Long addr = get_ea(((Double) data.get("addr")).longValue());
+			Address ea = currentProgram.getImageBase().getNewAddress(addr);
+			String text = (String)data.get("text");
+			
+			Symbol sym = symbolTable.getPrimarySymbol(ea);
+			synchronized(lock) {
+				startTransaction();
+				try {
+					if (sym == null) {
+						if (text == null || (text != null && text.isBlank())) {
+							endTransaction(false);
+							return; // no symbol defined there currently, no symbol provided to set
+						}
+						sym = symbolTable.createLabel(ea, text, SourceType.DEFAULT);
+						if (!sym.isPrimary()) {
+							sym.setPrimary();
+						}
+					}
+					else {
+						if (text != null && !text.isBlank()) {
+							sym.setName(text, SourceType.DEFAULT);						
+						}
+					}
+					endTransaction(true);
+				}
+				catch (InvalidInputException e) {
+					Msg.info(this, "Error setting new symbol: " + text + " at ea: " + ea.toString());
+					endTransaction(false);
+				}
+				catch (DuplicateNameException e) {
+					Msg.info(this, "Error setting new symbol: " + text + " at ea: " + ea.toString());
+					endTransaction(false);
+				}
+			}
 		} else if (cmd.equals("stackvar_renamed")) {
 
 		} else if (cmd.equals("struc_created")) {
