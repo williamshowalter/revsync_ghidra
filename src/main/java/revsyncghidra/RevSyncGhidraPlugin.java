@@ -166,12 +166,38 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		else if (ev.containsEvent(ChangeManager.DOCR_SYMBOL_ADDED)
 				|| ev.containsEvent(ChangeManager.DOCR_SYMBOL_REMOVED)
 				|| ev.containsEvent(ChangeManager.DOCR_SYMBOL_RENAMED)) {
-			consolePrint("Got " + String.valueOf(ev.numRecords()) + " records");
-			for (int i = 0; i < ev.numRecords(); i++) {
-				DomainObjectChangeRecord record = ev.getChangeRecord(i);
-				if (record instanceof ProgramChangeRecord) {
-					ProgramChangeRecord r = (ProgramChangeRecord) record;
-					consolePrint("DEBUG comment changed: " + r.toString());
+			consolePrint("Got " + String.valueOf(ev.numRecords()) + " records"); 
+			// sometimes a new name will be a delete + new name, last record seems to always be the one we want
+			
+			DomainObjectChangeRecord record = ev.getChangeRecord(ev.numRecords()-1); // last record
+			if (record instanceof ProgramChangeRecord) {
+				ProgramChangeRecord r = (ProgramChangeRecord) record;
+				consolePrint("DEBUG symbol changed: " + r.toString());
+				consolePrint("DEBUG symbolAddress = " + r.getStart().toString());
+				consolePrint("DEBUG symbolAddressType = " + r.getStart().getClass());
+				if (r.getObject() != null){
+					consolePrint("DEBUG symbolChangeObjectClass = " + r.getObject().getClass());
+					consolePrint("DEBUG symbolChangedObject = " + r.getObject().toString());
+				}
+
+				Object changedObject = r.getObject();
+				if (changedObject != null && changedObject.getClass() == ghidra.program.database.symbol.VariableSymbolDB.class) {
+					// function variable - not just a rename
+				}
+				// NOTE there are definitely going to be some edge cases this completely misses.
+				// But it seems to work fine on generic rename of data/function/code addresses, most of
+				// the delete operations too, but if something like creating/deleting functions completely
+				// caused the last event in a multi-event event to not be symbol related then it could miss things.
+				else {
+					// Assume it's a 'rename' (generic symbol attached to EA - code/function/data
+					TreeMap<String,Object> data = new TreeMap<String,Object>();
+					Long can_addr = get_can_addr(r.getStart());
+					Msg.info(this, "newValue type = " + r.getNewValue().getClass().toString());
+					String newName = r.getNewValue().toString();
+					data.put("cmd", "rename");
+					data.put("addr", can_addr);
+					data.put("text", newName);
+					client.publish(data);
 				}
 			}
 		}
@@ -196,6 +222,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	}
 	
 	private void startTransaction() {
+		currentProgram.removeListener(this); // temporarily stop hooking changes
 		transactionID = currentProgram.startTransaction(getClass().getName());
 		Msg.info(this,  "starting transaction id = " + Integer.valueOf(transactionID).toString());
 	}
@@ -209,6 +236,41 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		else {
 			Msg.info(this, "transaction ID already -1, not ending");
 		}
+		currentProgram.addListener(this); // resume hooking changes
+	}
+	
+	private void updateSymbol(Address ea, String text) {
+		SymbolTable symbolTable = currentProgram.getSymbolTable();
+		Symbol sym = symbolTable.getPrimarySymbol(ea);
+		synchronized(lock) {
+			startTransaction();
+			try {
+				if (sym == null) {
+					if (text == null || (text != null && text.isBlank())) {
+						endTransaction(false);
+						return; // no symbol defined there currently, no symbol provided to set
+					}
+					sym = symbolTable.createLabel(ea, text, SourceType.USER_DEFINED);
+					if (!sym.isPrimary()) {
+						sym.setPrimary();
+					}
+				}
+				else {
+					if (text != null && !text.isBlank()) {
+						sym.setName(text, SourceType.DEFAULT);						
+					}
+				}
+				endTransaction(true);
+			}
+			catch (InvalidInputException e) {
+				Msg.info(this, "Error setting new symbol: " + text + " at ea: " + ea.toString());
+				endTransaction(false);
+			}
+			catch (DuplicateNameException e) {
+				Msg.info(this, "Error setting new symbol: " + text + " at ea: " + ea.toString());
+				endTransaction(false);
+			}
+		}
 	}
 
 	// binja_frontend never uses replay variable, Ghidra not using it for anything yet either
@@ -218,7 +280,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		String user = (String) data.get("user");
 		Long ts = ((Double) data.get("ts")).longValue();
 		Listing listing = currentProgram.getListing();
-		SymbolTable symbolTable = currentProgram.getSymbolTable();
 
 		if (cmd == null) {
 			consolePrint("Error - no cmd in message");
@@ -241,37 +302,8 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			Long addr = get_ea(((Double) data.get("addr")).longValue());
 			Address ea = currentProgram.getImageBase().getNewAddress(addr);
 			String text = (String)data.get("text");
+			updateSymbol(ea, text);
 			
-			Symbol sym = symbolTable.getPrimarySymbol(ea);
-			synchronized(lock) {
-				startTransaction();
-				try {
-					if (sym == null) {
-						if (text == null || (text != null && text.isBlank())) {
-							endTransaction(false);
-							return; // no symbol defined there currently, no symbol provided to set
-						}
-						sym = symbolTable.createLabel(ea, text, SourceType.DEFAULT);
-						if (!sym.isPrimary()) {
-							sym.setPrimary();
-						}
-					}
-					else {
-						if (text != null && !text.isBlank()) {
-							sym.setName(text, SourceType.DEFAULT);						
-						}
-					}
-					endTransaction(true);
-				}
-				catch (InvalidInputException e) {
-					Msg.info(this, "Error setting new symbol: " + text + " at ea: " + ea.toString());
-					endTransaction(false);
-				}
-				catch (DuplicateNameException e) {
-					Msg.info(this, "Error setting new symbol: " + text + " at ea: " + ea.toString());
-					endTransaction(false);
-				}
-			}
 		} else if (cmd.equals("stackvar_renamed")) {
 
 		} else if (cmd.equals("struc_created")) {
