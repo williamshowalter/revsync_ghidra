@@ -38,7 +38,7 @@ public class RevsyncClient {
 			}
 			
 			// reject our own messages
-			if (data.get("uuid").equals(uuid)) {
+			if (data.get("uuid") != null && data.get("uuid").equals(uuid)) {
 				return;
 			}
 			
