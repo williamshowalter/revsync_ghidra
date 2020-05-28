@@ -20,9 +20,9 @@ public class RevsyncConfig {
       Gson gson = new Gson();
       Properties props = System.getProperties();
 
-      String cwd = (String)props.get("user.home");
+      String home = (String)props.get("user.home");
       String fsep = (String)props.get("file.separator");
-      String fPath = cwd+fsep + ".revsync" + fsep + "config.json";
+      String fPath = home+fsep + ".revsync" + fsep + "config.json";
       console.addMessage("RevsyncConfig", "Loading config from: " + fPath);
       
       FileReader fr = new FileReader(fPath);
