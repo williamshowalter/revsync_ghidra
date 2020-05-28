@@ -5,9 +5,7 @@ ADD REVSYNC LICENSE AND COPYRIGHT STUFF HERE
 package revsyncghidra;
 
 import java.util.TreeMap;
-
 import javax.swing.*;
-
 import docking.ActionContext;
 import docking.action.DockingAction;
 import docking.action.MenuData;
@@ -19,14 +17,12 @@ import ghidra.app.services.ProgramManager;
 import ghidra.framework.model.DomainObjectChangeRecord;
 import ghidra.framework.model.DomainObjectChangedEvent;
 import ghidra.framework.model.DomainObjectListener;
-import ghidra.framework.model.Transaction;
 import ghidra.framework.plugintool.*;
 import ghidra.framework.plugintool.util.PluginStatus;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.CodeUnit;
 import ghidra.program.model.listing.Listing;
 import ghidra.program.model.listing.Program;
-import ghidra.program.model.mem.Memory;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolTable;
@@ -44,7 +40,7 @@ import revsyncghidra.Comments.NoChange;
 	packageName = RevsyncPluginPackage.NAME,
 	category = PluginCategoryNames.COMMON,
 	shortDescription = "Revsync Plugin for Ghidra",
-	description = "Revsync Plugin for Ghidra. Syncs markup to Redis in realtime.",
+	description = "Revsync Plugin for Ghidra. Syncs mark up to Redis in realtime.",
 	servicesRequired = { ProgramManager.class /* list of service classes that this plugin requires */ },
 	servicesProvided = { /* list of service classes that this plugin registers with Plugin.registerServiceProvided() */ },
 	eventsConsumed = { ProgramActivatedPluginEvent.class }

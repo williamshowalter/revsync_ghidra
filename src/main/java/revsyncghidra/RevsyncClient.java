@@ -294,11 +294,11 @@ public class RevsyncClient {
 
 	@SuppressWarnings("deprecation")
 	public RevsyncClient(RevSyncGhidraPlugin frontend, RevsyncConfig conf) {
-		jedisGen = new Jedis(conf.host, conf.port, 5);
+		jedisGen = new Jedis(conf.host, conf.port, 5000);
 		if (conf.password != null) {
 			jedisGen.auth(conf.password);
 		}
-		jedisSub = new Jedis(conf.host, conf.port, 5);
+		jedisSub = new Jedis(conf.host, conf.port, 5000);
 		if (conf.password != null) {
 			jedisSub.auth(conf.password);
 		}

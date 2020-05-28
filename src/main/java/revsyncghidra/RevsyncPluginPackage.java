@@ -11,6 +11,5 @@ public class RevsyncPluginPackage extends PluginPackage {
 	public RevsyncPluginPackage() {
 		super(NAME, ResourceManager.loadImage("images/update_tango_publicdomain.png"),
 				"Revsync plugin", EXAMPLES_PRIORITY);
-		Msg.info(this, "RevSyncPluginPackage constructor");
 	}
 }
