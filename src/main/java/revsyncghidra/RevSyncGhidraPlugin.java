@@ -205,13 +205,18 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 				// caused the last event in a multi-event event to not be symbol related then it could miss things.
 				else {
 					// Assume it's a 'rename' (generic symbol attached to EA - code/function/data
-					TreeMap<String,Object> data = new TreeMap<String,Object>();
-					Long can_addr = get_can_addr(r.getStart());
-					String newName = r.getNewValue().toString();
-					data.put("cmd", "rename");
-					data.put("addr", can_addr);
-					data.put("text", newName);
-					client.publish(data);
+					try {
+						TreeMap<String,Object> data = new TreeMap<String,Object>();
+						Long can_addr = get_can_addr(r.getStart());
+						String newName = r.getNewValue().toString();
+						data.put("cmd", "rename");
+						data.put("addr", can_addr);
+						data.put("text", newName);
+						client.publish(data);
+					}
+					catch (Exception e) {
+						Msg.info(this, "Caught exception in rename.");
+					}
 				}
 			}
 		}
