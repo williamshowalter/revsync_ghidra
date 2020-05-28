@@ -82,9 +82,8 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	/**
 	 * Plugin constructor.
 	 * 
-	 * WILL: It's important to note that the Program might not be activated/loaded
-	 * yet when this constructor is ran. Which is why Program activated initializes
-	 * some data.
+	 * program might not be activated/loaded yet when this constructor is ran. 
+	 * Which is why programActivated initializes some data.
 	 * 
 	 * @param tool The plugin tool that this plugin is added to.
 	 */
@@ -129,6 +128,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 
 	/**
 	 * This is the callback method for DomainObjectChangedEvents.
+	 * Any changed item in the program should trigger a callback here
 	 */
 	@Override
 	public void domainObjectChanged(DomainObjectChangedEvent ev) {
@@ -143,16 +143,14 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 				|| ev.containsEvent(ChangeManager.DOCR_REPEATABLE_COMMENT_CREATED)
 				|| ev.containsEvent(ChangeManager.DOCR_REPEATABLE_COMMENT_ADDED)
 				|| ev.containsEvent(ChangeManager.DOCR_REPEATABLE_COMMENT_DELETED)) {
-			consolePrint("Got " + String.valueOf(ev.numRecords()) + " records"); 
+//			consolePrint("Got " + String.valueOf(ev.numRecords()) + " records"); 
 			for (int i = 0; i < ev.numRecords(); i++) {
 				DomainObjectChangeRecord record = ev.getChangeRecord(i);
 				if (record instanceof ProgramChangeRecord) {
 					ProgramChangeRecord r = (ProgramChangeRecord) record;
 					// ignoring all comments except default EOL comments right now
 					
-					if (r.getEventType() == ChangeManager.DOCR_EOL_COMMENT_CHANGED) {
-						consolePrint("In if claus");
-						
+					if (r.getEventType() == ChangeManager.DOCR_EOL_COMMENT_CHANGED) {				
 						Address ea = r.getStart();
 						String userText = (String)r.getNewValue();
 						if (userText == null || (userText != null && userText.isBlank())) {
@@ -162,13 +160,11 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 							userText = comments.parse_comment_update(ea, client.nick, userText);
 						}
 						catch (NoChange e) {
-							consolePrint("Caught no change");
 							continue;
 						}
 						String fullCmtText = comments.set(ea, client.nick, userText, client.serverTimeSec());
 						synchronized(lock) {
 							startTransaction();
-//							listing.clearComments(ea, ea); // maybe keep, maybe take out
 							listing.setComment(ea, CodeUnit.EOL_COMMENT, fullCmtText);
 							endTransaction(true);
 						}
@@ -181,13 +177,13 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 						client.publish(data);
 					}
 					
-					consolePrint("DEBUG comment changed: " + r.toString());
-					consolePrint("DEBUG commentAddress = " + r.getStart().toString());
-					consolePrint("DEBUG commentAddressType = " + r.getStart().getClass());
-					if (r.getObject() != null){
-						consolePrint("DEBUG commentChangeObjectClass = " + r.getObject().getClass());
-						consolePrint("DEBUG commentChangedObject = " + r.getObject().toString());
-					}
+//					consolePrint("DEBUG comment changed: " + r.toString());
+//					consolePrint("DEBUG commentAddress = " + r.getStart().toString());
+//					consolePrint("DEBUG commentAddressType = " + r.getStart().getClass());
+//					if (r.getObject() != null){
+//						consolePrint("DEBUG commentChangeObjectClass = " + r.getObject().getClass());
+//						consolePrint("DEBUG commentChangedObject = " + r.getObject().toString());
+//					}
 				}
 			}
 		}
@@ -207,23 +203,21 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		else if (ev.containsEvent(ChangeManager.DOCR_SYMBOL_ADDED)
 				|| ev.containsEvent(ChangeManager.DOCR_SYMBOL_REMOVED)
 				|| ev.containsEvent(ChangeManager.DOCR_SYMBOL_RENAMED)) {
-			consolePrint("Got " + String.valueOf(ev.numRecords()) + " records"); 
-			// sometimes a new name will be a delete + new name, last record seems to always be the one we want
-			
+			// sometimes a new name will be a delete event + new name event, last record seems to always be the one we want
 			DomainObjectChangeRecord record = ev.getChangeRecord(ev.numRecords()-1); // last record
 			if (record instanceof ProgramChangeRecord) {
 				ProgramChangeRecord r = (ProgramChangeRecord) record;
-				consolePrint("DEBUG symbol changed: " + r.toString());
-				consolePrint("DEBUG symbolAddress = " + r.getStart().toString());
-				consolePrint("DEBUG symbolAddressType = " + r.getStart().getClass());
-				if (r.getObject() != null){
-					consolePrint("DEBUG symbolChangeObjectClass = " + r.getObject().getClass());
-					consolePrint("DEBUG symbolChangedObject = " + r.getObject().toString());
-				}
+//				consolePrint("DEBUG symbol changed: " + r.toString());
+//				consolePrint("DEBUG symbolAddress = " + r.getStart().toString());
+//				consolePrint("DEBUG symbolAddressType = " + r.getStart().getClass());
+//				if (r.getObject() != null){
+//					consolePrint("DEBUG symbolChangeObjectClass = " + r.getObject().getClass());
+//					consolePrint("DEBUG symbolChangedObject = " + r.getObject().toString());
+//				}
 
 				Object changedObject = r.getObject();
 				if (changedObject != null && changedObject.getClass() == ghidra.program.database.symbol.VariableSymbolDB.class) {
-					// function variable - not just a rename
+					// function variable - not just a renamed label
 				}
 				// NOTE there are definitely going to be some edge cases this completely misses.
 				// But it seems to work fine on generic rename of data/function/code addresses, most of
@@ -233,7 +227,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 					// Assume it's a 'rename' (generic symbol attached to EA - code/function/data
 					TreeMap<String,Object> data = new TreeMap<String,Object>();
 					Long can_addr = get_can_addr(r.getStart());
-					Msg.info(this, "newValue type = " + r.getNewValue().getClass().toString());
 					String newName = r.getNewValue().toString();
 					data.put("cmd", "rename");
 					data.put("addr", can_addr);
@@ -243,39 +236,34 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			}
 		}
 
-		// all other events
-		else {
-			for (int i = 0; i < ev.numRecords(); i++) {
-				DomainObjectChangeRecord record = ev.getChangeRecord(i);
-				if (record instanceof ProgramChangeRecord) {
-					ProgramChangeRecord r = (ProgramChangeRecord) record;
-					try {
-						consolePrint("DEBUG domainObjectChanged: " + r.toString());
-						consolePrint("Start " + r.getStart().toString());
-						consolePrint("End " + r.getEnd().toString());
-					} catch (Exception e) {
-						consolePrint("Couldnt print event");
-					}
-					// object is null in some/most cases? just use address
-				}
-			}
-		}
+//		// all other events
+//		else {
+//			for (int i = 0; i < ev.numRecords(); i++) {
+//				DomainObjectChangeRecord record = ev.getChangeRecord(i);
+//				if (record instanceof ProgramChangeRecord) {
+//					ProgramChangeRecord r = (ProgramChangeRecord) record;
+//					try {
+//						consolePrint("DEBUG domainObjectChanged: " + r.toString());
+//						consolePrint("Start " + r.getStart().toString());
+//						consolePrint("End " + r.getEnd().toString());
+//					} catch (Exception e) {
+//						consolePrint("Couldnt print event");
+//					}
+//					// object is null in some/most cases? just use address
+//				}
+//			}
+//		}
 	}
 	
 	private void startTransaction() {
 		currentProgram.removeListener(this); // temporarily stop hooking changes
 		transactionID = currentProgram.startTransaction(getClass().getName());
-		Msg.info(this,  "starting transaction id = " + Integer.valueOf(transactionID).toString());
 	}
 	
 	private void endTransaction(Boolean commit) {
 		if (transactionID != -1) {
-			Msg.info(this, "ending transaction id = " + Integer.valueOf(transactionID).toString());
 			currentProgram.endTransaction(transactionID, commit);
 			transactionID = -1;
-		}
-		else {
-			Msg.info(this, "transaction ID already -1, not ending");
 		}
 		currentProgram.addListener(this); // resume hooking changes
 	}
@@ -316,7 +304,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 
 	// binja_frontend never uses replay variable, Ghidra not using it for anything yet either
 	public void revsync_callback(TreeMap<String, Object> data, Boolean replay) {
-		Msg.info(this, "data: " + data.toString() + " replay: " + replay.toString());
+//		Msg.info(this, "data: " + data.toString() + " replay: " + replay.toString());
 		String cmd = (String) data.get("cmd");
 		String user = (String) data.get("user");
 		Long ts = ((Double) data.get("ts")).longValue();
@@ -327,41 +315,48 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		} else if (cmd.equals("comment")) {
 			Long addr = get_ea(((Double) data.get("addr")).longValue());
 			Address ea = currentProgram.getImageBase().getNewAddress(addr);
+			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + (String)data.get("text"));
 			String text = comments.set(ea, user, (String)data.get("text"), ts);
 			synchronized(lock) {
 				startTransaction();
-//				listing.clearComments(ea, ea); // maybe keep, maybe take out
 				listing.setComment(ea, CodeUnit.EOL_COMMENT, text); // EOL is "default" comment
 				endTransaction(true);
 			}
 		} else if (cmd.equals("extra_comment")) {
 				// find out which these are closest too in PRE, POST, REPEAT, and PLATE
-		} else if (cmd.equals("area_comment")) {
+			Long addr = get_ea(((Double) data.get("addr")).longValue());
+			Address ea = currentProgram.getImageBase().getNewAddress(addr);
+			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + (String)data.get("text"));
+		} 
+		// TODO STUBBED LOG STATEMENTS - NOT EVEN SUPER HELPFUL LOGS 
+		else if (cmd.equals("area_comment")) {
 			// find out which these are closest too in PRE, POST, REPEAT, and PLATE
+			Long addr = get_ea(((Double) data.get("addr")).longValue());
+			Address ea = currentProgram.getImageBase().getNewAddress(addr);
+			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + (String)data.get("text"));
 		} else if (cmd.equals("rename")) {
 			Long addr = get_ea(((Double) data.get("addr")).longValue());
 			Address ea = currentProgram.getImageBase().getNewAddress(addr);
 			String text = (String)data.get("text");
+			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + text);
 			updateSymbol(ea, text);
-			
 		} else if (cmd.equals("stackvar_renamed")) {
-
+			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("name"));
 		} else if (cmd.equals("struc_created")) {
-
+			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("struc_name"));
 		} else if (cmd.equals("struc_deleted")) {
-
+			consolePrint("<"+user+"> " + cmd + " " +(String)data.get("struc_name"));
 		} else if (cmd.equals("struc_renamed")) {
-
+			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("new_name"));
 		} else if (cmd.equals("struc_member_created")) {
-
+			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("struc_name"));
 		} else if (cmd.equals("struc_member_deleted")) {
-
+			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("struc_name"));
 		} else if (cmd.equals("struc_member_renamed")) {
-
+			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("struc_name"));
 		} else if (cmd.equals("struc_member_changed")) {
-
+			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("struc_name"));
 		}
-		// Done
 		else if (cmd.equals("join")) {
 			consolePrint(user + " joined");
 		} else if (cmd.equals("coverage")) {
@@ -377,7 +372,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	 */
 	@Override
 	protected void programActivated(Program program) {
-		Msg.info(this, "opened");
 		console = tool.getService(ConsoleService.class);
 		listing = currentProgram.getListing();
 		loadRevsyncAction.setEnabled(program != null);
@@ -389,7 +383,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	 */
 	@Override
 	protected void programDeactivated(Program program) {
-		Msg.info(this, "closed");
 		program.removeListener(this);
 	}
 

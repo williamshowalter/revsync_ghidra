@@ -354,24 +354,20 @@ public class RevsyncClient {
 	}
 
 	public void join(String subKey) {
-		Msg.info(this, "subscribing");
 		key = subKey;
 		subThread = new SubThread();
 		subThread.start();
 
 		TreeMap<String, Object> data = new TreeMap<String, Object>();
 		data.put("cmd", "join");
-		Msg.info(this, "finishing subscribing");
 		publish(data, false, true);
 	}
 
 	// need to test to make sure we can't trigger events after leave happens - since
 	// key is null etc.
 	public void leave() {
-		Msg.info(this, "unsubscribing");
 		revsub.unsubscribe(key);
 		key = null;
-		Msg.info(this, "finished unsubscribing");
 	}
 
 	public void publish(TreeMap<String, Object> data, boolean perm, boolean send_uuid) {
@@ -389,7 +385,6 @@ public class RevsyncClient {
 		for (Entry<String, Object> e : data.entrySet()) {
 			if(key_enc.get(e.getKey()) == null) {
 				// Not in key_enc, such as ts
-				Msg.info("encode skipping", e.toString());
 				encoded.put(e.getKey(), e.getValue());
 			}
 			else {

@@ -50,7 +50,6 @@ public class Comments {
 	}
 	
 	public String set(Address ea, String user, String cmt, Long timestamp) {
-		frontend.consolePrint("Comment at ea: " + ea.toString() + " - User: " + user + " - Cmt: " + cmt + " - ts: " + timestamp.toString());
 		String result = new String();
 		TreeMap<String,Cmt> newMap = comments.get(ea);
 		
@@ -75,7 +74,6 @@ public class Comments {
 		result = s.toString();
 		
 		text.put(ea, result);
-		frontend.consolePrint("New text for ea " + ea.toString() + " : " + result);
 		return result;
 	}
 	
