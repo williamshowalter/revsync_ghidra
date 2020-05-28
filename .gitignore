@@ -1,3 +1,5 @@
+config.json
+.revsync/config.json
 .build
 .gradle
 dist/

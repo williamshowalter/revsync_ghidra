@@ -23,9 +23,10 @@ public class RevsyncConfig {
       // TODO: We can look in user.home/.config or user.home/.revsync or something
       String cwd = (String)props.get("user.dir");
       String fsep = (String)props.get("file.separator");
-      console.addMessage("RevsyncConfig", "Loading config from: " + cwd + fsep + "config.json");
+      String fPath = cwd+fsep + ".revsync" + fsep + "config.json";
+      console.addMessage("RevsyncConfig", "Loading config from: " + fPath);
       
-      FileReader fr = new FileReader(cwd + fsep + "config.json");
+      FileReader fr = new FileReader(fPath);
       config = gson.fromJson(fr, TreeMap.class);
       fr.close();
 
