@@ -41,9 +41,20 @@ Copy the config.json.template file to ~/.revsync/config.json
 
 Fill out the information to point it at your redis server and set your nick - syncing won't work right for comments if nick's are not unique!
 
+# Example method for starting  a Redis server
+
 An example way to start a redis server for revsync through docker:
 
     docker run --rm --name redis-test -p 6379:6379 -d redis redis-server --requirepass examplePass
+
+Your ~/.revsync/config.json file may look like:
+
+    {
+        "host": "localhost",
+        "port": 6379,
+        "password": "examplePass",
+        "nick": "user123"
+    }
 
 # Load Revsync
 
