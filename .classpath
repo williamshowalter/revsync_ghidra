@@ -3,7 +3,6 @@
 	<classpathentry kind="src" path="src/main/java"/>
 	<classpathentry kind="src" path="src/main/help"/>
 	<classpathentry kind="src" path="src/main/resources"/>
-	<classpathentry kind="src" path="ghidra_scripts"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/java-11-openjdk-amd64">
 		<attributes>
 			<attribute name="module" value="true"/>

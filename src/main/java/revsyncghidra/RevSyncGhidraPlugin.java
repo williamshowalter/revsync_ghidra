@@ -176,14 +176,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 						data.put("text", userText);
 						client.publish(data);
 					}
-					
-//					consolePrint("DEBUG comment changed: " + r.toString());
-//					consolePrint("DEBUG commentAddress = " + r.getStart().toString());
-//					consolePrint("DEBUG commentAddressType = " + r.getStart().getClass());
-//					if (r.getObject() != null){
-//						consolePrint("DEBUG commentChangeObjectClass = " + r.getObject().getClass());
-//						consolePrint("DEBUG commentChangedObject = " + r.getObject().toString());
-//					}
 				}
 			}
 		}
@@ -207,14 +199,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			DomainObjectChangeRecord record = ev.getChangeRecord(ev.numRecords()-1); // last record
 			if (record instanceof ProgramChangeRecord) {
 				ProgramChangeRecord r = (ProgramChangeRecord) record;
-//				consolePrint("DEBUG symbol changed: " + r.toString());
-//				consolePrint("DEBUG symbolAddress = " + r.getStart().toString());
-//				consolePrint("DEBUG symbolAddressType = " + r.getStart().getClass());
-//				if (r.getObject() != null){
-//					consolePrint("DEBUG symbolChangeObjectClass = " + r.getObject().getClass());
-//					consolePrint("DEBUG symbolChangedObject = " + r.getObject().toString());
-//				}
-
 				Object changedObject = r.getObject();
 				if (changedObject != null && changedObject.getClass() == ghidra.program.database.symbol.VariableSymbolDB.class) {
 					// function variable - not just a renamed label
@@ -304,7 +288,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 
 	// binja_frontend never uses replay variable, Ghidra not using it for anything yet either
 	public void revsync_callback(TreeMap<String, Object> data, Boolean replay) {
-//		Msg.info(this, "data: " + data.toString() + " replay: " + replay.toString());
 		String cmd = (String) data.get("cmd");
 		String user = (String) data.get("user");
 		Long ts = ((Double) data.get("ts")).longValue();
@@ -312,6 +295,12 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		if (cmd == null) {
 			consolePrint("Error - no cmd in message");
 			return;
+		} else if (cmd.equals("rename")) {
+			Long addr = get_ea(((Double) data.get("addr")).longValue());
+			Address ea = currentProgram.getImageBase().getNewAddress(addr);
+			String text = (String)data.get("text");
+			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + text);
+			updateSymbol(ea, text);
 		} else if (cmd.equals("comment")) {
 			Long addr = get_ea(((Double) data.get("addr")).longValue());
 			Address ea = currentProgram.getImageBase().getNewAddress(addr);
@@ -323,7 +312,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 				endTransaction(true);
 			}
 		} else if (cmd.equals("extra_comment")) {
-				// find out which these are closest too in PRE, POST, REPEAT, and PLATE
+		// TODO find out which these  are closest too in PRE, POST, REPEAT, and PLATE
 			Long addr = get_ea(((Double) data.get("addr")).longValue());
 			Address ea = currentProgram.getImageBase().getNewAddress(addr);
 			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + (String)data.get("text"));
@@ -334,12 +323,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			Long addr = get_ea(((Double) data.get("addr")).longValue());
 			Address ea = currentProgram.getImageBase().getNewAddress(addr);
 			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + (String)data.get("text"));
-		} else if (cmd.equals("rename")) {
-			Long addr = get_ea(((Double) data.get("addr")).longValue());
-			Address ea = currentProgram.getImageBase().getNewAddress(addr);
-			String text = (String)data.get("text");
-			consolePrint("<"+user+"> " + cmd + " " + ea.toString() + " " + text);
-			updateSymbol(ea, text);
 		} else if (cmd.equals("stackvar_renamed")) {
 			consolePrint("<"+user+"> " + cmd + " " + (String)data.get("name"));
 		} else if (cmd.equals("struc_created")) {
@@ -425,7 +408,10 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		currentProgram.removeListener(this);
 		stopRevsyncAction.setEnabled(false);
 		loadRevsyncAction.setEnabled(true);
-
+		
+		comments = null;
+		client = null;
+		
 		announce("Revsync stopped for " + currentProgram.getName());
 	}
 
