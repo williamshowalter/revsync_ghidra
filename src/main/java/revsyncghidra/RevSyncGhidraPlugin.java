@@ -35,6 +35,7 @@ import ghidra.program.util.ProgramChangeRecord;
 import ghidra.util.Msg;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
+import revsyncghidra.Comments.NoChange;
 
 //@formatter:off
 @PluginInfo(
@@ -54,10 +55,16 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	private DockingAction loadRevsyncAction;
 	private DockingAction stopRevsyncAction;
 	private ConsoleService console;
+	protected Listing listing;
+	
+	public RevsyncConfig config;
+	public RevsyncClient client;
+	private Comments comments;
+	private int transactionID;
+	private Object lock = new Object();
 
 	public String fhash;
 
-//    public Comments comments;
 	public static String[] ghidra_reserved_prefix = { "SUB_", "FUN_", "locret_", "LOC_", "off_", "seg_", "asc_",
 			"byte_", "word_", "dword_", "qword_", "byte3_", "xmmword_", "ymmword_", "packreal_", "flt_", "dbl_",
 			"tbyte_", "stru_", "custdata_", "algn_", "unk_" };
@@ -72,12 +79,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		return addr + currentProgram.getImageBase().getOffset();
 	}
 	
-	public RevsyncConfig config;
-	public RevsyncClient client;
-	private Comments comments;
-	private int transactionID;
-	private Object lock = new Object();
-
 	/**
 	 * Plugin constructor.
 	 * 
@@ -142,11 +143,51 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 				|| ev.containsEvent(ChangeManager.DOCR_REPEATABLE_COMMENT_CREATED)
 				|| ev.containsEvent(ChangeManager.DOCR_REPEATABLE_COMMENT_ADDED)
 				|| ev.containsEvent(ChangeManager.DOCR_REPEATABLE_COMMENT_DELETED)) {
+			consolePrint("Got " + String.valueOf(ev.numRecords()) + " records"); 
 			for (int i = 0; i < ev.numRecords(); i++) {
 				DomainObjectChangeRecord record = ev.getChangeRecord(i);
 				if (record instanceof ProgramChangeRecord) {
 					ProgramChangeRecord r = (ProgramChangeRecord) record;
+					// ignoring all comments except default EOL comments right now
+					
+					if (r.getEventType() == ChangeManager.DOCR_EOL_COMMENT_CHANGED) {
+						consolePrint("In if claus");
+						
+						Address ea = r.getStart();
+						String userText = (String)r.getNewValue();
+						if (userText == null || (userText != null && userText.isBlank())) {
+							userText = "";
+						}
+						try {
+							userText = comments.parse_comment_update(ea, client.nick, userText);
+						}
+						catch (NoChange e) {
+							consolePrint("Caught no change");
+							continue;
+						}
+						String fullCmtText = comments.set(ea, client.nick, userText, client.serverTimeSec());
+						synchronized(lock) {
+							startTransaction();
+//							listing.clearComments(ea, ea); // maybe keep, maybe take out
+							listing.setComment(ea, CodeUnit.EOL_COMMENT, fullCmtText);
+							endTransaction(true);
+						}
+						
+						TreeMap<String,Object> data = new TreeMap<String,Object>();
+						Long can_addr = get_can_addr(ea);
+						data.put("cmd", "comment");
+						data.put("addr", can_addr);
+						data.put("text", userText);
+						client.publish(data);
+					}
+					
 					consolePrint("DEBUG comment changed: " + r.toString());
+					consolePrint("DEBUG commentAddress = " + r.getStart().toString());
+					consolePrint("DEBUG commentAddressType = " + r.getStart().getClass());
+					if (r.getObject() != null){
+						consolePrint("DEBUG commentChangeObjectClass = " + r.getObject().getClass());
+						consolePrint("DEBUG commentChangedObject = " + r.getObject().toString());
+					}
 				}
 			}
 		}
@@ -238,7 +279,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		}
 		currentProgram.addListener(this); // resume hooking changes
 	}
-	
+
 	private void updateSymbol(Address ea, String text) {
 		SymbolTable symbolTable = currentProgram.getSymbolTable();
 		Symbol sym = symbolTable.getPrimarySymbol(ea);
@@ -279,7 +320,6 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 		String cmd = (String) data.get("cmd");
 		String user = (String) data.get("user");
 		Long ts = ((Double) data.get("ts")).longValue();
-		Listing listing = currentProgram.getListing();
 
 		if (cmd == null) {
 			consolePrint("Error - no cmd in message");
@@ -290,7 +330,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			String text = comments.set(ea, user, (String)data.get("text"), ts);
 			synchronized(lock) {
 				startTransaction();
-				listing.clearComments(ea, ea); // maybe keep, maybe take out
+//				listing.clearComments(ea, ea); // maybe keep, maybe take out
 				listing.setComment(ea, CodeUnit.EOL_COMMENT, text); // EOL is "default" comment
 				endTransaction(true);
 			}
@@ -339,6 +379,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	protected void programActivated(Program program) {
 		Msg.info(this, "opened");
 		console = tool.getService(ConsoleService.class);
+		listing = currentProgram.getListing();
 		loadRevsyncAction.setEnabled(program != null);
 		fhash = program.getExecutableSHA256().toUpperCase();
 	}

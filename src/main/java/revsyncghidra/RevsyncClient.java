@@ -263,7 +263,7 @@ public class RevsyncClient {
 	protected Vector<Vector<Object>> nosend = new Vector<Vector<Object>>();
 	final protected Object lock = new Object();
 
-	protected long serverTime() {
+	public long serverTime() {
 		List<String> ll;
 		synchronized (lock) {
 			ll = jedisGen.time();
@@ -271,7 +271,7 @@ public class RevsyncClient {
 		return (Long.parseLong(ll.get(0)) * 1000) + (Long.parseLong(ll.get(1)) / 1000);
 	}
 
-	protected long serverTimeSec() {
+	public long serverTimeSec() {
 		List<String> ll;
 		synchronized (lock) {
 			ll = jedisGen.time();
