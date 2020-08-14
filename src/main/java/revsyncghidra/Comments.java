@@ -9,7 +9,7 @@ import ghidra.util.Msg;
 
 public class Comments {
 	protected static String delimiter = "\u0081" + "\n";
-	protected static String badSep = "\u001f";
+	protected static String badCharsXML1 = "[^\u0009\r\n\u0020-\uD7FF\uE000-\uFFFD\ud800\udc00-\udbff\udfff]";
 	private TreeMap<Address,TreeMap<String,Cmt>> comments = new TreeMap<Address,TreeMap<String,Cmt>>();
 	private TreeMap<Address,String> text = new TreeMap<Address,String>();
 	protected RevSyncGhidraPlugin frontend;
@@ -33,7 +33,7 @@ public class Comments {
 		public Cmt(long timestamp, String user, String cmt) {
 			this.timestamp = timestamp;
 			this.user = user;
-			this.cmt = cmt.replace(badSep,"");
+			this.cmt = cmt.replaceAll(badCharsXML1,"");
 		}
 
 		public int compareTo(Object o) {
@@ -75,6 +75,9 @@ public class Comments {
 		result = s.toString();
 		
 		text.put(ea, result);
+		if (result.isBlank()){
+			return null;
+		}
 		return result;
 	}
 	
