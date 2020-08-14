@@ -61,6 +61,12 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 
 	public String fhash;
 
+	// Merged Comment Units are merged into the type of setCommentUnit when changed.
+	// Comments received from revsync are always set as setCommentUnit.
+	// PRE_COMMENT was chosen because it shows up in both Listing and the Decompiler with default settings.
+	private static int[] mergedCommentUnits = {CodeUnit.EOL_COMMENT, CodeUnit.PLATE_COMMENT, CodeUnit.POST_COMMENT};
+	private static int setCommentUnit = CodeUnit.PRE_COMMENT;
+
 	public static String[] ghidra_reserved_prefix = { "SUB_", "FUN_", "locret_", "LOC_", "off_", "seg_", "asc_",
 			"byte_", "word_", "dword_", "qword_", "byte3_", "xmmword_", "ymmword_", "packreal_", "flt_", "dbl_",
 			"tbyte_", "stru_", "custdata_", "algn_", "unk_" };
@@ -144,9 +150,12 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 				DomainObjectChangeRecord record = ev.getChangeRecord(i);
 				if (record instanceof ProgramChangeRecord) {
 					ProgramChangeRecord r = (ProgramChangeRecord) record;
-					// ignoring all comments except default EOL comments right now
-					
-					if (r.getEventType() == ChangeManager.DOCR_EOL_COMMENT_CHANGED) {				
+					// ignoring REPEATABLE COMMENTS right now.
+					if (r.getEventType() == ChangeManager.DOCR_EOL_COMMENT_CHANGED ||
+							r.getEventType() == ChangeManager.DOCR_PRE_COMMENT_CHANGED ||
+							r.getEventType() == ChangeManager.DOCR_POST_COMMENT_CHANGED ||
+							r.getEventType() == ChangeManager.DOCR_PLATE_COMMENT_CHANGED) {
+
 						Address ea = r.getStart();
 						String userText = (String)r.getNewValue();
 						if (userText == null || (userText != null && userText.isBlank())) {
@@ -161,7 +170,10 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 						String fullCmtText = comments.set(ea, client.nick, userText, client.serverTimeSec());
 						synchronized(lock) {
 							startTransaction();
-							listing.setComment(ea, CodeUnit.EOL_COMMENT, fullCmtText);
+							for (int commentUnit : mergedCommentUnits) {
+								listing.setComment(ea, commentUnit, null);
+							}
+							listing.setComment(ea, setCommentUnit, fullCmtText);
 							endTransaction(true);
 						}
 						
@@ -309,7 +321,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 			String text = comments.set(ea, user, (String)data.get("text"), ts);
 			synchronized(lock) {
 				startTransaction();
-				listing.setComment(ea, CodeUnit.EOL_COMMENT, text); // EOL is "default" comment
+				listing.setComment(ea, setCommentUnit, text); // Set all comments to default - PRE_COMMENT
 				endTransaction(true);
 			}
 		} else if (cmd.equals("extra_comment")) {
