@@ -439,8 +439,8 @@
 			<attribute name="javadoc_location" value="jar:file:/opt/ghidra_9.1.2_PUBLIC/docs/GhidraAPI_javadoc.zip!/api/"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="libs/commons-pool2-2.8.0.jar"/>
-	<classpathentry kind="lib" path="libs/gson-2.8.6.jar"/>
-	<classpathentry kind="lib" path="libs/jedis-3.3.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="libs/commons-pool2-2.8.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="libs/gson-2.8.6.jar"/>
+	<classpathentry exported="true" kind="lib" path="libs/jedis-3.3.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

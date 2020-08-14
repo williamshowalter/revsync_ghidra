@@ -367,7 +367,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	 */
 	@Override
 	protected void programDeactivated(Program program) {
-		program.removeListener(this);
+		stopRevsync();
 	}
 
 	/**
