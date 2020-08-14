@@ -1,6 +1,6 @@
 # Ghidra Revsync Plugin
 
-# revsync
+# Revsync
 
 Revsync is a realtime syncing plugin for IDA Pro, Binary Ninja, and now Ghidra!
 
@@ -34,4 +34,8 @@ See [Installation.md](Installation.md) for installation directions.
 
 Comments are tracked on a per-nick basis. There are still some edge cases where editing a comment that was written by another user will interpret their comment as part of yours. Because of this the best practice is removing everything in the comment field except your own comment before saving your changes. Future releases plan on addressing this with more robust comment update parsing.
 
-The Ghidra supports five types of comments, the default being EOL comments. Currently Revsync Ghidra only syncs EOL comments.
+Revsync syncs between EOL Comment, Pre Comment, Post Comment, and Plate Comment. Pre Comments are now the default instead of EOL Comments, as they display in both Listing and Decompiler views without any change in configuration. The behavior of comments is for any comment put into a supported comment field to be moved into Pre Comment and deleted from the other comment fields. This allows smooth synchronizing with Binary Ninja and IDA Pro. Repeatable comments are ignored and not supported.
+
+# Changelog
+
+See [CHANGELOG.md](CHANGELOG.md)
