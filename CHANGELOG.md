@@ -3,7 +3,7 @@
 ## 1.0.1 (2020-08-18)
 
 Fixes:
-  - Fix for #1 accidentally introduced a bug where closing Ghidra without loading revsync would cause a null pointer dereference, due to Jedis never haven been started.
+  - Fix for #1 accidentally introduced a bug where closing Ghidra without loading revsync would cause a null pointer dereference, due to Jedis never having been started.
 
 Improvements:
   - Added console logging of client-side changes as they are sent to the redis server, similar to behavior of IDA Pro and Binary Ninja clients.
