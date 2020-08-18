@@ -60,6 +60,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	private Object lock = new Object();
 
 	public String fhash;
+	private Boolean enabled = false;
 
 	// Merged Comment Units are merged into the type of setCommentUnit when changed.
 	// Comments received from revsync are always set as setCommentUnit.
@@ -183,6 +184,7 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 						data.put("addr", can_addr);
 						data.put("text", userText);
 						client.publish(data);
+						consolePrint("<"+client.nick+"> " + "comment" + " " + ea.toString() + " " + userText);
 					}
 				}
 			}
@@ -218,13 +220,15 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 				else {
 					// Assume it's a 'rename' (generic symbol attached to EA - code/function/data
 					try {
+						Address ea = r.getStart();
 						TreeMap<String,Object> data = new TreeMap<String,Object>();
-						Long can_addr = get_can_addr(r.getStart());
+						Long can_addr = get_can_addr(ea);
 						String newName = r.getNewValue().toString();
 						data.put("cmd", "rename");
 						data.put("addr", can_addr);
 						data.put("text", newName);
 						client.publish(data);
+						consolePrint("<"+client.nick+"> " + "rename" + " " + ea.toString() + " " + newName);
 					}
 					catch (Exception e) {
 						Msg.info(this, "Caught exception in rename.");
@@ -379,13 +383,16 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	 */
 	@Override
 	protected void programDeactivated(Program program) {
-		stopRevsync();
+		if (enabled == true) {
+			stopRevsync();
+		}
 	}
 
 	/**
 	 * Callback for menu option
 	 */
 	protected void loadRevsync() {
+		enabled = true;
 		if (currentProgram == null) {
 			return;
 		}
@@ -413,7 +420,11 @@ public class RevSyncGhidraPlugin extends ProgramPlugin implements DomainObjectLi
 	}
 
 	protected void stopRevsync() {
-		client.leave();
+		enabled = false;
+		if(client != null) {
+			client.leave();
+		}
+
 		if (currentProgram == null) {
 			return;
 		}
