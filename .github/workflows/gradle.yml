@@ -10,9 +10,6 @@ name: Build Revsync Ghidra (latest ghidra)
 on:
   workflow_dispatch
 
-permissions:
-  contents: read
-
 jobs:
   build:
 
