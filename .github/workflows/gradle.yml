@@ -32,6 +32,7 @@ jobs:
     - name: Build with Gradle
       uses: gradle/gradle-build-action@v2
       with:
+        arguments: buildExtension
         gradle-version: 7.3
     - name: Set build name
       run: echo "::set-output name=BUILD_NAME::$(ls $GITHUB_WORKSPACE/dist/)"
