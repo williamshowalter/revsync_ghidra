@@ -17,8 +17,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        path: 'revsync_ghidra'
     - name: Set up JDK 11
       uses: actions/setup-java@v3
       with:
@@ -29,15 +27,14 @@ jobs:
         python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
     - name: Download ghidra
-      run: mkdir ghidra/ && GHIDRA_ZIP_FILE=$(python revsync_ghidra/download_latest_ghidra.py) && unzip -d $GITHUB_WORKSPACE/ghidra $GHIDRA_ZIP_FILE && echo "GHIDRA_INSTALL_DIR=$GITHUB_WORKSPACE/ghidra/$(ls $GITHUB_WORKSPACE/ghidra/)" > revsync_ghidra/gradle.properties
+      run: mkdir ghidra/ && GHIDRA_ZIP_FILE=$(python revsync_ghidra/download_latest_ghidra.py) && unzip -d $RUNNER_TEMP/ghidra $GHIDRA_ZIP_FILE && echo "GHIDRA_INSTALL_DIR=$RUNNER_TEMP/ghidra/$(ls $RUNNER_TEMP/ghidra/)" > gradle.properties
       id: download-ghidra
     - name: Build with Gradle
       uses: gradle/gradle-build-action@v2
       with:
-        build-root-directory: 'revsync_ghidra'
         gradle-version: 7.3
     - name: Set build name
-      run: echo "::set-output name=BUILD_NAME::$(ls $GITHUB_WORKSPACE/revsync_ghidra/dist/)"
+      run: echo "::set-output name=BUILD_NAME::$(ls $GITHUB_WORKSPACE/dist/)"
       id: build-name
     - name: Create Release
       id: create_release
