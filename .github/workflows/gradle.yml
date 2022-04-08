@@ -27,7 +27,7 @@ jobs:
         python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
     - name: Download ghidra
-      run: mkdir ghidra/ && GHIDRA_ZIP_FILE=$(python revsync_ghidra/download_latest_ghidra.py) && unzip -d $RUNNER_TEMP/ghidra $GHIDRA_ZIP_FILE && echo "GHIDRA_INSTALL_DIR=$RUNNER_TEMP/ghidra/$(ls $RUNNER_TEMP/ghidra/)" > gradle.properties
+      run: mkdir ghidra/ && GHIDRA_ZIP_FILE=$(python download_latest_ghidra.py) && unzip -d $RUNNER_TEMP/ghidra $GHIDRA_ZIP_FILE && echo "GHIDRA_INSTALL_DIR=$RUNNER_TEMP/ghidra/$(ls $RUNNER_TEMP/ghidra/)" > gradle.properties
       id: download-ghidra
     - name: Build with Gradle
       uses: gradle/gradle-build-action@v2
@@ -53,6 +53,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-        asset_path: revsync_ghidra/dist/${{ steps.build-name.outputs.BUILD_NAME }}
+        asset_path: dist/${{ steps.build-name.outputs.BUILD_NAME }}
         asset_name: ${{ steps.build-name.outputs.BUILD_NAME }}
         asset_content_type: application/zip
