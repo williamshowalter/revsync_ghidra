@@ -29,7 +29,7 @@ jobs:
         python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
         architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
     - name: Download ghidra
-      run: mkdir ghidra/ && GHIDRA_ZIP_FILE=$(python revsync_ghidra/download_latest_ghidra.py) && unzip -d $GITHUB_WORKSPACE/ghidra /tmp/$GHIDRA_ZIP_FILE && echo "GHIDRA_INSTALL_DIR=$GITHUB_WORKSPACE/ghidra/$(ls $GITHUB_WORKSPACE/ghidra/)" > revsync_ghidra/gradle.properties
+      run: mkdir ghidra/ && GHIDRA_ZIP_FILE=$(python revsync_ghidra/download_latest_ghidra.py) && unzip -d $GITHUB_WORKSPACE/ghidra $GHIDRA_ZIP_FILE && echo "GHIDRA_INSTALL_DIR=$GITHUB_WORKSPACE/ghidra/$(ls $GITHUB_WORKSPACE/ghidra/)" > revsync_ghidra/gradle.properties
       id: download-ghidra
     - name: Build with Gradle
       uses: gradle/gradle-build-action@v2
