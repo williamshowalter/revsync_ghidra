@@ -1,0 +1,64 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+# This workflow will build a Java project with Gradle and cache/restore any dependencies to improve the workflow execution time
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-gradle
+
+name: Build Revsync Ghidra (latest ghidra)
+
+on:
+  workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        path: 'revsync_ghidra'
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+    - uses: actions/setup-python@v3
+      with:
+        python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+    - name: Download ghidra
+      run: mkdir ghidra/ && GHIDRA_ZIP_FILE=$(python revsync_ghidra/download_latest_ghidra.py) && unzip -d $GITHUB_WORKSPACE/ghidra /tmp/$GHIDRA_ZIP_FILE && echo "GHIDRA_INSTALL_DIR=$GITHUB_WORKSPACE/ghidra/$(ls $GITHUB_WORKSPACE/ghidra/)" > revsync_ghidra/gradle.properties
+      id: download-ghidra
+    - name: Build with Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        path: 'revsync_ghidra'
+        gradle-version: 7.3
+    - name: Set build name
+      run: echo "::set-output name=BUILD_NAME::$(ls $GITHUB_WORKSPACE/revsync_ghidra/dist/)"
+      id: build-name
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.build-name.outputs.BUILD_NAME }}
+        release_name: Release ${{ steps.build-name.outputs.BUILD_NAME }}
+        draft: false
+        prerelease: false
+    - name: Upload Release Asset
+      id: upload-release-asset 
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+        asset_path: revsync_ghidra/dist/${{ steps.build-name.outputs.BUILD_NAME }}
+        asset_name: ${{ steps.build-name.outputs.BUILD_NAME }}
+        asset_content_type: application/zip
