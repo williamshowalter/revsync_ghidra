@@ -1,9 +1,7 @@
 FROM ubuntu:20.04 as builder-stage
 
-#
-# Install APT packages
-# Setting a timezone is needed to avoid an interactive prompt from dpkg
-#
+# example build command, places output plugin in /tmp: DOCKER_BUILDKIT=1 docker build -o /tmp/ .
+
 RUN ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime \
     && apt-get update && apt-get install -y --no-install-recommends \
     fontconfig libxrender1 libxtst6 libxi6 wget unzip git openjdk-11-jdk gnupg cmake \
