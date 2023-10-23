@@ -7,7 +7,7 @@ RUN ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime \
     fontconfig libxrender1 libxtst6 libxi6 wget unzip git openjdk-11-jdk gnupg cmake \
     protobuf-compiler libprotobuf-dev build-essential maven python3
 
-RUN wget -O /tmp/gradle.zip https://downloads.gradle-dn.com/distributions/gradle-7.3.3-bin.zip \
+RUN wget -O /tmp/gradle.zip https://downloads.gradle.org/distributions/gradle-7.3.3-bin.zip \
     && unzip /tmp/gradle.zip -d ~/gradle/ \
     && mkdir -p ~/.gradle \
     && mkdir -p ~/ghidra/
